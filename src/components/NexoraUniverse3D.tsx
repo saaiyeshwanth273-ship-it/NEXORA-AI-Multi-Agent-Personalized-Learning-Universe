@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
+  AppPage,
   CareerMatchAnalysis,
   RoadmapMilestone,
   SkillNode,
@@ -29,6 +30,10 @@ import {
   VolumeX,
 } from 'lucide-react';
 
+interface WindowWithWebkitAudio extends Window {
+  webkitAudioContext?: typeof AudioContext;
+}
+
 interface NexoraUniverse3DProps {
   skills: SkillNode[];
   roadmap: RoadmapMilestone[];
@@ -36,7 +41,7 @@ interface NexoraUniverse3DProps {
   activeZone: UniverseZone;
   onZoneChange: (zone: UniverseZone) => void;
   onSelectSkillForAssessment: (skillId: string) => void;
-  onNavigateToPage: (page: any) => void;
+  onNavigateToPage: (page: AppPage) => void;
   reducedMotion: boolean;
   prefer2DFallback: boolean;
   onToggle2DFallback: () => void;
@@ -100,10 +105,11 @@ const ZONE_CAMERA_PRESETS: Record<
 };
 
 // Procedural Web Audio Chime (Portfolio Mechanism)
-function playSelectionChime(enabled: boolean) {
+function playSelectionChime(enabled: boolean): void {
   if (!enabled || typeof window === 'undefined') return;
   try {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+    const win = window as WindowWithWebkitAudio;
+    const AudioCtx = window.AudioContext || win.webkitAudioContext;
     if (!AudioCtx) return;
     const ctx = new AudioCtx();
     const osc = ctx.createOscillator();

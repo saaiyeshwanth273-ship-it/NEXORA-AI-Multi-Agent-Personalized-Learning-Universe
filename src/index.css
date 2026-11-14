@@ -10,7 +10,7 @@
 
   body {
     font-family: var(--font-sans);
-    background-color: #060913;
+    background-color: #09070f;
     color: #f1f5f9;
     overflow-x: hidden;
   }
@@ -21,6 +21,15 @@
 
   code, pre, .font-mono {
     font-family: var(--font-mono);
+  }
+
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid #ec4899;
+    outline-offset: 2px;
   }
 }
 

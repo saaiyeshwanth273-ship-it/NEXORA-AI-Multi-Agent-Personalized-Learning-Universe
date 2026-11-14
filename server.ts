@@ -12,7 +12,19 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = 3000;
 
+app.disable('x-powered-by');
 app.use(express.json({ limit: '512kb' }));
+
+// Zero-Trust Security Headers Middleware (OWASP ASVS Level 2)
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('Permissions-Policy', 'camera=(), geolocation=(), payment=(), usb=()');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  next();
+});
 
 // Sliding-window rate limiter per IP for API protection
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
@@ -35,6 +47,37 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
+interface SkillInputPayload {
+  id?: string;
+  name?: string;
+  proficiency?: number;
+  targetProficiency?: number;
+  status?: string;
+}
+
+interface MentorHistoryItem {
+  role?: string;
+  content?: string;
+}
+
+interface ParsedOrchestratorPayload {
+  executiveSummary?: string;
+  agentOutputs?: Array<{
+    agentId: string;
+    agentName: string;
+    taskPerformed: string;
+    outputSummary: string;
+    confidence: number;
+  }>;
+  priorityActions?: string[];
+}
+
+interface ParsedMentorPayload {
+  reply?: string;
+  agentInsights?: string[];
+  suggestedFollowUps?: string[];
+}
+
 function sanitizeInput(text: unknown, maxLen = 4000): string {
   if (typeof text !== 'string') return '';
   return text
@@ -44,7 +87,7 @@ function sanitizeInput(text: unknown, maxLen = 4000): string {
     .trim();
 }
 
-function parseJsonSafe(rawText: string | undefined): any | null {
+function parseJsonSafe<T>(rawText: string | undefined): T | null {
   if (!rawText) return null;
   const cleaned = rawText
     .replace(/^```json\s*/i, '')
@@ -52,7 +95,7 @@ function parseJsonSafe(rawText: string | undefined): any | null {
     .replace(/\s*```$/, '')
     .trim();
   try {
-    return JSON.parse(cleaned);
+    return JSON.parse(cleaned) as T;
   } catch {
     return null;
   }
@@ -79,7 +122,7 @@ function buildDeterministicEightAgents(
   safeCareer: string,
   weeklyHours: number,
   safeReason: string,
-  skillsArray: any[]
+  skillsArray: SkillInputPayload[]
 ) {
   const mastered = skillsArray.filter((s) => Number(s.proficiency) >= 4 || s.status === 'mastered');
   const weakOrRev = skillsArray.filter(
@@ -87,9 +130,9 @@ function buildDeterministicEightAgents(
   );
   const missing = skillsArray.filter((s) => Number(s.proficiency) === 0 || s.status === 'missing');
 
-  const masteredNames = mastered.map((s) => s.name).join(', ') || 'None verified yet (0/5 clean baseline)';
-  const weakNames = weakOrRev.map((s) => s.name).join(', ') || 'No weak skills flagged yet';
-  const missingNames = missing.slice(0, 4).map((s) => s.name).join(', ') || 'Core stack complete';
+  const masteredNames = mastered.map((s) => s.name || 'Skill').join(', ') || 'None verified yet (0/5 clean baseline)';
+  const weakNames = weakOrRev.map((s) => s.name || 'Skill').join(', ') || 'No weak skills flagged yet';
+  const missingNames = missing.slice(0, 4).map((s) => s.name || 'Skill').join(', ') || 'Core stack complete';
   const topFocusSkill = weakOrRev[0]?.name || missing[0]?.name || 'JavaScript (ES6+ & Async)';
 
   const readinessPct =
@@ -178,13 +221,13 @@ app.post('/api/agents/orchestrate', async (req, res) => {
     const safeCareer = sanitizeInput(targetCareer || 'Full Stack Developer', 100);
     const safeReason = sanitizeInput(triggerReason || 'Manual Multi-Agent Orchestration', 200);
     const hours = Math.min(80, Math.max(2, Number(weeklyHours) || 12));
-    const skillsList = Array.isArray(skills) ? skills.slice(0, 15) : [];
+    const skillsList: SkillInputPayload[] = Array.isArray(skills) ? skills.slice(0, 15) : [];
 
     const skillSummary =
       skillsList.length > 0
         ? skillsList
             .map(
-              (s: any) =>
+              (s: SkillInputPayload) =>
                 `${sanitizeInput(s.name, 50)}: ${Number(s.proficiency) || 0}/5 (${sanitizeInput(
                   s.status,
                   20
@@ -253,7 +296,7 @@ Also provide an executiveSummary and 3 concrete priorityActions.`;
           },
         });
 
-        const parsed = parseJsonSafe(response.text);
+        const parsed = parseJsonSafe<ParsedOrchestratorPayload>(response.text);
         if (parsed && Array.isArray(parsed.agentOutputs) && parsed.agentOutputs.length > 0) {
           return res.json({
             mode: 'live_gemini',
@@ -263,8 +306,8 @@ Also provide an executiveSummary and 3 concrete priorityActions.`;
             priorityActions: parsed.priorityActions || fallbackPayload.priorityActions,
           });
         }
-      } catch (geminiError) {
-        console.warn('Gemini live orchestrate fallback to deterministic 8-agent engine:', geminiError);
+      } catch {
+        // Fallback to deterministic 8-agent engine
       }
     }
 
@@ -273,8 +316,7 @@ Also provide an executiveSummary and 3 concrete priorityActions.`;
       durationMs: Date.now() - startTime,
       ...fallbackPayload,
     });
-  } catch (error) {
-    console.error('Orchestrator error:', error);
+  } catch {
     const fallbackPayload = buildDeterministicEightAgents(
       'Learner',
       'Full Stack Developer',
@@ -407,10 +449,10 @@ app.post('/api/mentor/chat', async (req, res) => {
     if (ai) {
       try {
         const historyText = Array.isArray(history)
-          ? history
+          ? (history as MentorHistoryItem[])
               .slice(-6)
               .map(
-                (m: any) =>
+                (m) =>
                   `${m.role === 'user' ? 'Learner' : 'NEXORA Mentor'}: ${sanitizeInput(
                     m.content,
                     500
@@ -464,7 +506,7 @@ Guidelines:
           },
         });
 
-        const parsed = parseJsonSafe(response.text);
+        const parsed = parseJsonSafe<ParsedMentorPayload>(response.text);
         if (parsed && typeof parsed.reply === 'string' && parsed.reply.trim().length > 10) {
           return res.json({
             mode: 'live_gemini',
@@ -479,8 +521,8 @@ Guidelines:
                 : contextualFallback.suggestedFollowUps,
           });
         }
-      } catch (geminiErr) {
-        console.warn('Gemini Mentor chat fallback to contextual mentor engine:', geminiErr);
+      } catch {
+        // Fallback to contextual mentor engine
       }
     }
 
@@ -488,8 +530,7 @@ Guidelines:
       mode: 'context_engine',
       ...contextualFallback,
     });
-  } catch (error) {
-    console.error('Mentor chat error:', error);
+  } catch {
     const fallback = buildContextualMentorResponse(
       String(req.body?.message || 'study plan'),
       'Learner',
@@ -543,8 +584,8 @@ Write an energetic, warm, spoken-aloud coaching response (2 to 3 sentences max, 
         if (textResponse.text) {
           spokenScript = textResponse.text.replace(/[*#`]/g, '').trim();
         }
-      } catch (textErr) {
-        console.warn('Voice assistant text step fallback:', textErr);
+      } catch {
+        // Fallback to default spoken script
       }
 
       try {
@@ -578,8 +619,8 @@ Write an energetic, warm, spoken-aloud coaching response (2 to 3 sentences max, 
           base64WavAudio = inlineAudio;
           mode = 'live_gemini_tts';
         }
-      } catch (ttsErr) {
-        console.warn('Gemini TTS audio fallback to browser speechSynthesis:', ttsErr);
+      } catch {
+        // Fallback to browser speechSynthesis
       }
     }
 
@@ -591,8 +632,7 @@ Write an energetic, warm, spoken-aloud coaching response (2 to 3 sentences max, 
       base64Audio: base64WavAudio,
       dopamineTip: '+25 XP Voice Coaching Synced to Adaptive Roadmap',
     });
-  } catch (error) {
-    console.error('Voice assistant error:', error);
+  } catch {
     return res.status(200).json({
       mode: 'voice_synthesis_engine',
       voiceName: 'Kore',

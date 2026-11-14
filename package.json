@@ -1,7 +1,8 @@
 {
-  "name": "react-example",
+  "name": "nexora-ai-learning-ecosystem",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "NEXORA AI — Next-Generation Multi-Agent Personalized 3D Learning Ecosystem",
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
@@ -9,7 +10,8 @@
     "start": "node server.ts",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "tsx --test src/lib/learningEngine.test.ts firestore.rules.test.ts"
   },
   "dependencies": {
     "@firebase/eslint-plugin-security-rules": "^0.0.2",

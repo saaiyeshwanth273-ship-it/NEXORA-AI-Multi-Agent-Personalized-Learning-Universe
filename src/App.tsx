@@ -60,6 +60,7 @@ import {
   GeminiVoiceAssistantWidget,
   DopamineReelsFeedView,
 } from './components/DopamineReelsAndVoiceViews';
+import { DashboardCommandCenterView } from './components/DashboardCommandCenterView';
 import {
   LayoutDashboard,
   Sparkles,
@@ -309,10 +310,17 @@ export default function App() {
         second: '2-digit',
       });
 
+      interface AgentOutputItem {
+        agentId?: string;
+        taskPerformed?: string;
+        outputSummary?: string;
+        confidence?: number;
+      }
+
       updateProfileState((prev) => {
         const updatedAgents = prev.agentStatuses.map((ag) => {
           const found = Array.isArray(data.agentOutputs)
-            ? data.agentOutputs.find((o: any) => o.agentId === ag.id)
+            ? (data.agentOutputs as AgentOutputItem[]).find((o) => o.agentId === ag.id)
             : null;
           if (!found) {
             return { ...ag, status: 'completed' as const, lastUpdated: 'Just now' };
@@ -386,11 +394,35 @@ export default function App() {
   const handleSelectCareer = (careerId: string) => {
     const chosen = allCareers.find((c) => c.id === careerId);
     if (!chosen) return;
-    updateProfileState((prev) => ({
-      ...prev,
-      targetCareerId: careerId,
-      roadmap: generateAdaptiveRoadmap(prev.skills, chosen, prev.weeklyHoursAvailable),
-    }));
+    updateProfileState((prev) => {
+      const nextRoadmap = generateAdaptiveRoadmap(prev.skills, chosen, prev.weeklyHoursAvailable);
+      const nextAnalysis = analyzeCareerCompatibility(prev.skills, chosen);
+      const careerMentorNotice = {
+        id: `m_career_${Date.now()}`,
+        role: 'mentor' as const,
+        content: `### Career Target Updated to **${chosen.title}** (${nextAnalysis.compatibilityScore}% Compatibility)\n\nOur **Career Intelligence Agent** and **Learning Architect Agent** have recalibrated your roadmap and resource recommendations for **${chosen.title}**:\n\n- **Top Priority Skill Gaps**: ${
+          nextAnalysis.recommendedPriorityOrder
+            .slice(0, 3)
+            .map((g) => `${g.skillName} (${g.currentLevel}/5 → ${g.requiredLevel}/5)`)
+            .join(', ') || 'All core competencies verified'
+        }\n- **Active Roadmap Milestone**: **${nextRoadmap[0]?.title || 'Phase 1'}**`,
+        timestamp: 'Just now',
+        agentInsights: [
+          `Career Intelligence Agent: Benchmarked ${chosen.requiredTechnicalSkills.length} role requirements for ${chosen.title}`,
+          `Learning Architect Agent: Re-sequenced ${nextRoadmap.length} adaptive learning phases`,
+        ],
+        suggestedFollowUps: [
+          `What are the most important skills for ${chosen.title}?`,
+          'Which assessment should I take first for my new career goal?',
+        ],
+      };
+      return {
+        ...prev,
+        targetCareerId: careerId,
+        roadmap: nextRoadmap,
+        mentorMessages: [...prev.mentorMessages, careerMentorNotice],
+      };
+    });
     handleTriggerOrchestration(`Target Career Switched to ${chosen.title}`);
   };
 
@@ -460,6 +492,24 @@ export default function App() {
           : wp
       );
 
+      const performanceMentorUpdate = {
+        id: `m_eval_${Date.now()}`,
+        role: 'mentor' as const,
+        content:
+          result.scorePercentage < 60
+            ? `### Proactive Remediation Plan: **${updatedSkill.name}** (${result.scorePercentage}% Score)\n\nBecause your diagnostic score was **${result.scorePercentage}%**, our **Assessment Evaluator Agent** and **Learning Architect Agent** automatically adjusted your learning strategy to **${result.learningPaceAssigned}**:\n\n1. **Injected Step-by-Step Walkthrough**: Added a foundational remedial lesson at the top of your **${updatedSkill.name}** roadmap phase.\n2. **Recommended Focus**: ${result.areasRequiringImprovement[0] || 'Review core mental models in the Knowledge Library.'}\n3. **Next Action**: Watch the 60-second **${updatedSkill.name}** Skill Reel or review the curated documentation in the **Knowledge Library**, then re-test to unlock Fast-Track mode!`
+            : `### Assessment Verified: **${updatedSkill.name}** (${result.scorePercentage}% · ${result.learningPaceAssigned})\n\nGreat work! Your **${updatedSkill.name}** proficiency is now **${updatedSkill.proficiency}/5** and your **${currentCareer.title}** readiness is **${nextCompatibility}%**.\n\n- **Adaptation Applied**: ${result.adaptationSummary}`,
+        timestamp: 'Just now',
+        agentInsights: [
+          `Assessment Evaluator Agent: Graded ${updatedSkill.name} (${result.scorePercentage}%) -> ${result.learningPaceAssigned}`,
+          `Progress Intelligence Agent: Updated ${currentCareer.title} readiness to ${nextCompatibility}%`,
+        ],
+        suggestedFollowUps: [
+          `Explain the key concepts of ${updatedSkill.name} with a code example`,
+          'What is my next highest-priority skill on the roadmap?',
+        ],
+      };
+
       return {
         ...prev,
         skills: nextSkills,
@@ -468,8 +518,13 @@ export default function App() {
         achievements: nextAchievements,
         weeklyProgress: updatedWeekly,
         dopamineXp: (prev.dopamineXp || 0) + (result.scorePercentage >= 80 ? 120 : 50),
+        mentorMessages: [...prev.mentorMessages, performanceMentorUpdate],
       };
     });
+
+    handleTriggerOrchestration(
+      `Assessment Completed: ${targetSkill.name} (${result.scorePercentage}% · ${result.learningPaceAssigned})`
+    );
 
     return result;
   };
@@ -668,8 +723,16 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#09070f] text-slate-100 flex relative">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:px-4 focus:py-2 focus:rounded-xl focus:bg-pink-600 focus:text-white focus:text-xs focus:font-bold"
+      >
+        Skip to main content
+      </a>
+
       {/* Collapsible Instagram-Obsidian Navigation Sidebar */}
       <aside
+        aria-label="Workspace Sidebar"
         className={`${
           sidebarCollapsed
             ? 'w-14 md:w-16'
@@ -701,7 +764,10 @@ export default function App() {
             </button>
           </div>
 
-          <nav className="p-2.5 space-y-1 max-h-[calc(100vh-170px)] overflow-y-auto">
+          <nav
+            aria-label="Workspace Module Navigation"
+            className="p-2.5 space-y-1 max-h-[calc(100vh-170px)] overflow-y-auto"
+          >
             {navItems.map((item) => {
               const isActive = activePage === item.id;
               return (
@@ -710,6 +776,8 @@ export default function App() {
                   type="button"
                   onClick={() => setActivePage(item.id)}
                   title={item.label}
+                  data-testid={`nav-item-${item.id}`}
+                  aria-current={isActive ? 'page' : undefined}
                   className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
                     isActive
                       ? 'bg-gradient-to-r from-rose-500 via-pink-500 to-amber-500 text-white font-semibold shadow-md'
@@ -791,7 +859,7 @@ export default function App() {
         </header>
 
         {/* Active Page Body */}
-        <main className="flex-1 overflow-y-auto pb-20">
+        <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto pb-20">
           {activePage === 'universe' ? (
             <NexoraUniverse3D
               skills={profile.skills}
@@ -816,204 +884,25 @@ export default function App() {
           ) : (
             <div className="max-w-[1320px] mx-auto p-6 lg:p-8 space-y-6">
               {activePage === 'dashboard' && (
-                <>
-                  {/* Instagram-Style Skill Stories Bar on Dashboard */}
-                  <div className="bg-[#120d1d] border border-pink-500/30 rounded-3xl p-5 space-y-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <Flame className="w-4 h-4 text-rose-500 fill-rose-500" />
-                        <span className="text-xs font-mono font-bold text-pink-300">
-                          DAILY SKILL STORIES · TAP A RING FOR 60-SECOND DOPAMINE REELS
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setActivePage('reels')}
-                        className="text-xs font-semibold text-amber-300 hover:underline cursor-pointer"
-                      >
-                        Open Full Skill Reels Feed →
-                      </button>
-                    </div>
-
-                    <div className="flex items-center gap-4 overflow-x-auto py-1">
-                      {profile.skills.map((skill) => (
-                        <button
-                          key={skill.id}
-                          type="button"
-                          onClick={() => setActivePage('reels')}
-                          className="flex flex-col items-center gap-1 shrink-0 cursor-pointer group"
-                        >
-                          <div
-                            className={`w-14 h-14 rounded-full p-[2.5px] transition-transform group-hover:scale-105 ${
-                              skill.status === 'mastered'
-                                ? 'bg-gradient-to-tr from-emerald-400 via-teal-400 to-cyan-500'
-                                : skill.status === 'weak' || skill.status === 'revision'
-                                ? 'bg-gradient-to-tr from-amber-400 via-rose-500 to-fuchsia-600'
-                                : 'bg-gradient-to-tr from-violet-600 to-pink-600'
-                            }`}
-                          >
-                            <div className="w-full h-full rounded-full bg-[#09070f] flex flex-col items-center justify-center text-white">
-                              <span className="text-xs font-mono font-bold">{skill.proficiency}/5</span>
-                              <span className="text-[9px] text-pink-300">
-                                {skill.lastScore !== undefined ? `${skill.lastScore}%` : 'New'}
-                              </span>
-                            </div>
-                          </div>
-                          <span className="text-[11px] font-medium text-slate-200 max-w-[70px] truncate">
-                            {skill.name.split(' ')[0]}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Personalized Greeting & Career Readiness Hero Card */}
-                  <div className="bg-gradient-to-r from-[#171026] via-[#120d1d] to-[#1f1024] border border-pink-500/30 rounded-3xl p-6 lg:p-7 flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                    <div className="space-y-2 max-w-2xl">
-                      <div className="text-xs font-mono text-pink-400">
-                        NEXORA COMMAND CENTER ·{' '}
-                        {profile.isDemo
-                          ? 'SAMPLE SCENARIO: ALEX'
-                          : 'CLEAN PERSONALIZED LEARNER SESSION (ZERO DEMO DATA)'}
-                      </div>
-                      <h1 className="text-2xl sm:text-3xl font-bold text-white font-display">
-                        Welcome, {profile.fullName}
-                      </h1>
-                      <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
-                        Target Career:{' '}
-                        <span className="font-semibold text-white">{currentCareer.title}</span> ·
-                        Active Milestone:{' '}
-                        <span className="text-amber-300">{activeMilestone?.title}</span>
-                      </p>
-                      <div className="flex flex-wrap items-center gap-2 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => setActivePage('user-auth')}
-                          className="px-3 py-1.5 rounded-xl bg-[#09070f] hover:bg-pink-950/60 border border-pink-500/30 text-xs font-semibold text-pink-300 cursor-pointer"
-                        >
-                          Switch / Create Clean User Account
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setActivePage('mentor')}
-                          className="px-3 py-1.5 rounded-xl bg-[#09070f] hover:bg-amber-950/60 border border-amber-500/30 text-xs font-semibold text-amber-300 cursor-pointer"
-                        >
-                          Open AI Mentor & Code Coach
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setActivePage('agents')}
-                          className="px-3 py-1.5 rounded-xl bg-[#09070f] hover:bg-emerald-950/60 border border-emerald-500/30 text-xs font-semibold text-emerald-300 cursor-pointer"
-                        >
-                          8-Agent Activity Center
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-6 shrink-0 bg-[#09070f] px-6 py-4 rounded-2xl border border-pink-500/25">
-                      <div className="font-mono tabular-nums">
-                        <div className="text-3xl font-bold text-pink-400">
-                          {careerAnalysis.compatibilityScore}%
-                        </div>
-                        <div className="text-xs text-slate-400">Career Readiness</div>
-                      </div>
-                      <div className="h-10 w-px bg-slate-800" />
-                      <div className="font-mono tabular-nums">
-                        <div className="text-3xl font-bold text-amber-400">
-                          {careerAnalysis.masteredSkills.length}/
-                          {currentCareer.requiredTechnicalSkills.length}
-                        </div>
-                        <div className="text-xs text-slate-400">Core Skills Verified</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Interactive 3D Skill Universe Signature Viewport on Dashboard */}
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <h2 className="text-lg font-bold text-white font-display">
-                          Interactive 3D Circuit Skill Universe (Click Any Globe or HUD Reticle to Zoom & Scroll)
-                        </h2>
-                        <p className="text-xs text-slate-400">
-                          Click any 3D skill globe or floating HUD reticle to fly the camera to that station and scroll directly to its 3D Model Card below.
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setActivePage('universe')}
-                        className="text-xs font-semibold text-pink-400 hover:text-pink-300 cursor-pointer"
-                      >
-                        Expand Full-Screen 3D Viewport →
-                      </button>
-                    </div>
-
-                    <NexoraUniverse3D
-                      skills={profile.skills}
-                      roadmap={profile.roadmap}
-                      careerAnalysis={careerAnalysis}
-                      activeZone={activeZone}
-                      onZoneChange={setActiveZone}
-                      onSelectSkillForAssessment={(skillId) => {
-                        setSelectedAssessmentSkillId(skillId);
-                        setActivePage('assessments');
-                      }}
-                      onNavigateToPage={setActivePage}
-                      reducedMotion={profile.reducedMotion}
-                      prefer2DFallback={profile.prefer2DFallback}
-                      onToggle2DFallback={() =>
-                        updateProfileState((prev) => ({
-                          ...prev,
-                          prefer2DFallback: !prev.prefer2DFallback,
-                        }))
-                      }
-                      compactMode={true}
-                    />
-                  </div>
-
-                  {/* Test-Driven Adaptive Learning Process Calibration Summary */}
-                  <div className="bg-[#120d1d] border border-pink-500/25 rounded-3xl p-6 space-y-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <div className="text-xs font-mono text-amber-300">
-                          TEST-DRIVEN ADAPTIVE ENGINE · PERSONALIZED PACE CALIBRATION
-                        </div>
-                        <h3 className="text-lg font-bold text-white font-display">
-                          How Your Test Results Adjust Your Learning Process
-                        </h3>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setActivePage('assessments')}
-                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-rose-500 to-amber-500 text-white font-semibold text-xs cursor-pointer"
-                      >
-                        Take Skill Diagnostic Test →
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      {profile.skills.slice(0, 6).map((skill) => (
-                        <div
-                          key={skill.id}
-                          className="p-4 rounded-2xl bg-[#09070f] border border-slate-800 space-y-1.5"
-                        >
-                          <div className="flex items-center justify-between text-xs">
-                            <span className="font-bold text-white">{skill.name}</span>
-                            <span className="font-mono text-pink-400">
-                              {skill.lastScore !== undefined ? `Test: ${skill.lastScore}%` : 'Unassessed'}
-                            </span>
-                          </div>
-                          <div className="text-[11px] text-amber-300 font-mono">
-                            Pace: {skill.learningPaceMode || 'Guided Foundations (Step-by-Step)'}
-                          </div>
-                          <div className="text-[11px] text-slate-400">
-                            Difficulty Tier: {skill.recommendedDifficulty || 'Beginner'} · Level {skill.proficiency}/5
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </>
+                <DashboardCommandCenterView
+                  profile={profile}
+                  currentCareer={currentCareer}
+                  careerAnalysis={careerAnalysis}
+                  activeMilestone={activeMilestone}
+                  activeZone={activeZone}
+                  onZoneChange={setActiveZone}
+                  onNavigateToPage={setActivePage}
+                  onSelectSkillForAssessment={(skillId) => {
+                    setSelectedAssessmentSkillId(skillId);
+                    setActivePage('assessments');
+                  }}
+                  onToggle2DFallback={() =>
+                    updateProfileState((prev) => ({
+                      ...prev,
+                      prefer2DFallback: !prev.prefer2DFallback,
+                    }))
+                  }
+                />
               )}
 
               {activePage === 'reels' && (

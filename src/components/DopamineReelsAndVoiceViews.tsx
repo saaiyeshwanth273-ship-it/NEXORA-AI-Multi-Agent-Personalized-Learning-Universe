@@ -120,9 +120,34 @@ export const GeminiVoiceAssistantWidget: React.FC<GeminiVoiceAssistantWidgetProp
     }
   };
 
-  const handleStartMicRecognition = () => {
-    const SpeechRec =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  const handleStartMicRecognition = (): void => {
+    interface SpeechRecognitionResultEvent {
+      results?: {
+        [index: number]: {
+          [subIndex: number]: {
+            transcript?: string;
+          };
+        };
+      };
+    }
+
+    interface SpeechRecognitionInstance {
+      lang: string;
+      interimResults: boolean;
+      maxAlternatives: number;
+      onresult: ((event: SpeechRecognitionResultEvent) => void) | null;
+      onerror: (() => void) | null;
+      onend: (() => void) | null;
+      start: () => void;
+    }
+
+    interface WindowWithSpeech extends Window {
+      SpeechRecognition?: new () => SpeechRecognitionInstance;
+      webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
+    }
+
+    const win = window as WindowWithSpeech;
+    const SpeechRec = win.SpeechRecognition || win.webkitSpeechRecognition;
     if (!SpeechRec) {
       const fallbackQ = 'How should I adjust my study plan based on my latest test results?';
       setVoicePrompt(fallbackQ);
@@ -136,7 +161,7 @@ export const GeminiVoiceAssistantWidget: React.FC<GeminiVoiceAssistantWidgetProp
       recognition.maxAlternatives = 1;
       setIsListening(true);
       setStatusBadge('Listening to Microphone...');
-      recognition.onresult = (event: any) => {
+      recognition.onresult = (event: SpeechRecognitionResultEvent) => {
         const heard = event.results?.[0]?.[0]?.transcript || '';
         setIsListening(false);
         if (heard) {

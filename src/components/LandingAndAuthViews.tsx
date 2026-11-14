@@ -38,7 +38,14 @@ export const LandingView: React.FC<LandingViewProps> = ({
   onToggle2DFallback,
 }) => {
   return (
-    <div className="min-h-screen bg-[#09070f] text-slate-100 flex flex-col">
+    <div id="top" className="min-h-screen bg-[#09070f] text-slate-100 flex flex-col">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:px-4 focus:py-2 focus:rounded-xl focus:bg-pink-600 focus:text-white focus:text-xs focus:font-bold"
+      >
+        Skip to main content
+      </a>
+
       {/* Top Bar Contract: Zone 1 (Wordmark) — Zone 2 (4 single-line links) — Zone 3 (Learner Login CTA) */}
       <header className="flex items-center justify-between gap-6 px-6 lg:px-12 py-4 border-b border-pink-500/20 bg-[#09070f]/95 sticky top-0 z-30">
         <a
@@ -48,7 +55,10 @@ export const LandingView: React.FC<LandingViewProps> = ({
           NEXORA AI
         </a>
 
-        <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-slate-300">
+        <nav
+          aria-label="Primary Gateway Navigation"
+          className="hidden md:flex items-center gap-7 text-sm font-medium text-slate-300"
+        >
           <a
             href="#universe-showcase"
             className="hover:text-pink-400 transition-colors whitespace-nowrap shrink-0"
@@ -79,6 +89,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
           <button
             type="button"
             onClick={onEnterDemoMode}
+            data-testid="try-demo-scenario"
             className="hidden sm:inline-flex px-3.5 py-2 text-xs font-semibold text-pink-200 bg-[#171026] hover:bg-pink-950/60 border border-pink-500/30 rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             Explore Sample Scenario
@@ -95,7 +106,7 @@ export const LandingView: React.FC<LandingViewProps> = ({
       </header>
 
       {/* Hero Split Section + Interactive 3D Gateway Preview */}
-      <main className="flex-1">
+      <main id="main-content" tabIndex={-1} className="flex-1">
         <section className="max-w-[1380px] mx-auto px-6 lg:px-12 pt-10 pb-14">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
             <div className="lg:col-span-5 flex flex-col justify-between space-y-6 bg-gradient-to-b from-[#171026] via-[#120d1d] to-[#0d0917] border border-pink-500/30 rounded-3xl p-7 lg:p-9 shadow-2xl">
