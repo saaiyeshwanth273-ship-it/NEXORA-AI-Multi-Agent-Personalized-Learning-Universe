@@ -1,0 +1,6 @@
+{
+  "name": "NEXORA AI — Multi-Agent Personalized Learning Universe",
+  "description": "Discover your potential. Master your skills. Build your future. An AI-powered multi-agent personalized learning ecosystem and interactive 3D skill intelligence universe.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,160 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isVerified() && (
+        request.auth.token.email == 'saaiyeshwanth273@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidAdminRecord(data) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'email', 'createdAt']) &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+        data.email is string && data.email.size() >= 3 && data.email.size() <= 160;
+    }
+
+    function isValidLearnerProfile(data) {
+      return data.keys().hasAll(['uid', 'fullName', 'targetCareerId', 'weeklyHoursAvailable', 'createdAt', 'updatedAt']) &&
+        data.keys().hasOnly([
+          'uid',
+          'fullName',
+          'qualification',
+          'institution',
+          'level',
+          'targetCareerId',
+          'learningStyle',
+          'weeklyHoursAvailable',
+          'shortTermGoal',
+          'longTermGoal',
+          'mfaEnabled',
+          'statePayload',
+          'createdAt',
+          'updatedAt'
+        ]) &&
+        data.uid == request.auth.uid &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+        data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 120 &&
+        data.targetCareerId is string && data.targetCareerId.size() >= 1 && data.targetCareerId.size() <= 80 &&
+        data.weeklyHoursAvailable is number && data.weeklyHoursAvailable >= 1 && data.weeklyHoursAvailable <= 100 &&
+        (!('qualification' in data) || (data.qualification is string && data.qualification.size() <= 160)) &&
+        (!('institution' in data) || (data.institution is string && data.institution.size() <= 160)) &&
+        (!('level' in data) || (data.level is string && data.level.size() <= 80)) &&
+        (!('learningStyle' in data) || (data.learningStyle is string && data.learningStyle.size() <= 60)) &&
+        (!('shortTermGoal' in data) || (data.shortTermGoal is string && data.shortTermGoal.size() <= 500)) &&
+        (!('longTermGoal' in data) || (data.longTermGoal is string && data.longTermGoal.size() <= 500)) &&
+        (!('mfaEnabled' in data) || (data.mfaEnabled is bool)) &&
+        (!('statePayload' in data) || (data.statePayload is map));
+    }
+
+    function isValidMentorMessage(data) {
+      return data.keys().hasAll(['uid', 'role', 'content', 'createdAt']) &&
+        data.keys().hasOnly(['uid', 'role', 'content', 'createdAt']) &&
+        data.uid == request.auth.uid &&
+        data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+        data.role is string && data.role.size() <= 20 && (data.role == 'user' || data.role == 'mentor') &&
+        data.content is string && data.content.size() >= 1 && data.content.size() <= 8000;
+    }
+
+    match /admins/{adminId} {
+      allow get: if (isOwner(adminId) || isAdmin()) && isValidId(adminId);
+      allow list: if isAdmin() && resource.data.uid is string;
+      allow create: if isAdmin() &&
+        isValidId(adminId) &&
+        isValidAdminRecord(incoming()) &&
+        incoming().createdAt == request.time;
+      allow update: if false;
+      allow delete: if isAdmin() && isValidId(adminId);
+    }
+
+    match /learners/{learnerId} {
+      allow get: if (isOwner(learnerId) || isAdmin()) && isValidId(learnerId);
+      allow list: if isSignedIn() && (resource.data.uid == request.auth.uid || isAdmin());
+
+      allow create: if isVerified() &&
+        isOwner(learnerId) &&
+        isValidId(learnerId) &&
+        isValidLearnerProfile(incoming()) &&
+        incoming().createdAt == request.time &&
+        incoming().updatedAt == request.time;
+
+      allow update: if isVerified() &&
+        isValidId(learnerId) &&
+        isValidLearnerProfile(incoming()) &&
+        incoming().uid == existing().uid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().updatedAt == request.time && (
+          isAdmin() || (
+            isOwner(learnerId) &&
+            incoming().diff(existing()).affectedKeys().hasOnly([
+              'fullName',
+              'qualification',
+              'institution',
+              'level',
+              'targetCareerId',
+              'learningStyle',
+              'weeklyHoursAvailable',
+              'shortTermGoal',
+              'longTermGoal',
+              'mfaEnabled',
+              'statePayload',
+              'updatedAt'
+            ])
+          )
+        );
+
+      allow delete: if isVerified() && (isOwner(learnerId) || isAdmin()) && isValidId(learnerId);
+
+      match /messages/{messageId} {
+        allow get: if (isOwner(learnerId) || isAdmin()) &&
+          isValidId(learnerId) &&
+          isValidId(messageId) &&
+          exists(/databases/$(database)/documents/learners/$(learnerId));
+
+        allow list: if (isOwner(learnerId) || isAdmin()) &&
+          resource.data.uid == learnerId;
+
+        allow create: if isVerified() &&
+          isOwner(learnerId) &&
+          isValidId(learnerId) &&
+          isValidId(messageId) &&
+          isValidMentorMessage(incoming()) &&
+          incoming().createdAt == request.time &&
+          exists(/databases/$(database)/documents/learners/$(learnerId));
+
+        allow update: if false;
+        allow delete: if isVerified() && (isOwner(learnerId) || isAdmin()) && isValidId(learnerId) && isValidId(messageId);
+      }
+    }
+  }
+}

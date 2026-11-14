@@ -1,0 +1,156 @@
+{
+  "entities": {
+    "LearnerProfile": {
+      "title": "LearnerProfile",
+      "description": "Stores a learner's profile, skills, career target, roadmap, assessment history, dopamine XP/streak, and progress records.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "fullName": {
+          "type": "string",
+          "description": "Learner's full name",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "qualification": {
+          "type": "string",
+          "description": "Educational qualification",
+          "maxLength": 160
+        },
+        "institution": {
+          "type": "string",
+          "description": "University or organization",
+          "maxLength": 160
+        },
+        "level": {
+          "type": "string",
+          "description": "Current academic or professional level",
+          "maxLength": 80
+        },
+        "targetCareerId": {
+          "type": "string",
+          "description": "Selected target career role identifier",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "learningStyle": {
+          "type": "string",
+          "description": "Preferred learning modality",
+          "maxLength": 60
+        },
+        "weeklyHoursAvailable": {
+          "type": "number",
+          "description": "Available learning hours per week"
+        },
+        "shortTermGoal": {
+          "type": "string",
+          "description": "Learner short-term objective",
+          "maxLength": 500
+        },
+        "longTermGoal": {
+          "type": "string",
+          "description": "Learner long-term objective",
+          "maxLength": 500
+        },
+        "mfaEnabled": {
+          "type": "boolean",
+          "description": "Whether multi-factor verification is enabled for this profile"
+        },
+        "statePayload": {
+          "type": "object",
+          "description": "Structured map containing skills, roadmap, assessmentHistory, weeklyProgress, achievements, and agentLogs"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation server timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update server timestamp"
+        }
+      },
+      "required": [
+        "uid",
+        "fullName",
+        "targetCareerId",
+        "weeklyHoursAvailable",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "MentorConversation": {
+      "title": "MentorConversation",
+      "description": "Stores AI Mentor chat messages for a specific learner.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["user", "mentor"],
+          "maxLength": 20
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "role", "content", "createdAt"]
+    },
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Trusted administrator registry document.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "email": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 160
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["uid", "email", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/learners/{learnerId}": {
+      "schema": { "$ref": "#/entities/LearnerProfile" },
+      "description": "Stores isolated learner profiles and learning universe state indexed by the user's UID."
+    },
+    "/learners/{learnerId}/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/MentorConversation" },
+      "description": "Stores AI Mentor chat messages belonging to a specific learner."
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/AdminRecord" },
+      "description": "Stores verified platform administrators."
+    }
+  }
+}
