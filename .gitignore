@@ -9,3 +9,8 @@ coverage/
 .playwright-cli/
 .aistudio/
 DRAFT_firestore.rules
+firebase-applet-config.local.json
+*.pem
+*.key
+service-account*.json
+

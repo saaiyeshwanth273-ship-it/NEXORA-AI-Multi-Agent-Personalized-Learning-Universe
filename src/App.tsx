@@ -17,6 +17,7 @@ import {
   db,
   googleProvider,
   handleFirestoreError,
+  isFirebaseConfigured,
   OperationType,
 } from './firebase';
 import {
@@ -152,7 +153,7 @@ export default function App() {
   }, [profile]);
 
   const persistProfileToFirestore = async (nextState: LearnerProfileState, user: User | null) => {
-    if (!user || !user.emailVerified) return;
+    if (!user || !user.emailVerified || !isFirebaseConfigured) return;
     const path = `learners/${user.uid}`;
     try {
       const ref = doc(db, 'learners', user.uid);
@@ -190,6 +191,7 @@ export default function App() {
   };
 
   useEffect(() => {
+    if (!auth || !isFirebaseConfigured) return;
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setFirebaseUser(user);
       if (user) {
@@ -240,6 +242,12 @@ export default function App() {
 
   const handleGoogleSignInForUser = async () => {
     setAuthError(null);
+    if (!auth || !isFirebaseConfigured) {
+      setAuthError(
+        'Google Sign-In requires VITE_FIREBASE_API_KEY in .env — or use the New Learner form below to start a clean profile immediately.'
+      );
+      return;
+    }
     try {
       const cred = await signInWithPopup(auth, googleProvider);
       const user = cred.user;
@@ -805,7 +813,7 @@ export default function App() {
           <button
             type="button"
             onClick={async () => {
-              if (firebaseUser) {
+              if (firebaseUser && auth && isFirebaseConfigured) {
                 await signOut(auth);
               }
               setActivePage('landing');
@@ -1191,7 +1199,7 @@ export default function App() {
                   }
                   onResetToAlexDemo={async () => {
                     localStorage.removeItem(LOCAL_STORAGE_KEY);
-                    if (firebaseUser) {
+                    if (firebaseUser && isFirebaseConfigured) {
                       try {
                         await deleteDoc(doc(db, 'learners', firebaseUser.uid));
                       } catch {

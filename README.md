@@ -51,7 +51,7 @@
 
 ### 1. Clone & Install Dependencies
 ```bash
-git clone https://github.com/saaiyeshwanth273-ship-it/NEXORA-AI-Multi-Agent-Personalized-Learning-Universe.git
+git clone https://github.com/<your-username>/NEXORA-AI-Multi-Agent-Personalized-Learning-Universe.git
 cd NEXORA-AI-Multi-Agent-Personalized-Learning-Universe
 npm install
 ```
