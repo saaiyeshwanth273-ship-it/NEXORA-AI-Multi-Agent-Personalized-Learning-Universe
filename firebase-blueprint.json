@@ -114,29 +114,6 @@
         }
       },
       "required": ["uid", "role", "content", "createdAt"]
-    },
-    "AdminRecord": {
-      "title": "AdminRecord",
-      "description": "Trusted administrator registry document.",
-      "type": "object",
-      "properties": {
-        "uid": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 128,
-          "pattern": "^[a-zA-Z0-9_\\-]+$"
-        },
-        "email": {
-          "type": "string",
-          "minLength": 3,
-          "maxLength": 160
-        },
-        "createdAt": {
-          "type": "string",
-          "format": "date-time"
-        }
-      },
-      "required": ["uid", "email", "createdAt"]
     }
   },
   "firestore": {
@@ -147,10 +124,6 @@
     "/learners/{learnerId}/messages/{messageId}": {
       "schema": { "$ref": "#/entities/MentorConversation" },
       "description": "Stores AI Mentor chat messages belonging to a specific learner."
-    },
-    "/admins/{adminId}": {
-      "schema": { "$ref": "#/entities/AdminRecord" },
-      "description": "Stores verified platform administrators."
     }
   }
 }

@@ -54,19 +54,26 @@ export interface FirestoreErrorInfo {
   };
 }
 
+function maskEmail(email: string | null | undefined): string | null {
+  if (!email) return null;
+  const [local, domain] = email.split('@');
+  if (!local || !domain) return '[REDACTED]';
+  return `${local.slice(0, 1)}***@${domain}`;
+}
+
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null): never {
   const errInfo: FirestoreErrorInfo = {
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
       userId: auth?.currentUser?.uid,
-      email: auth?.currentUser?.email,
+      email: maskEmail(auth?.currentUser?.email),
       emailVerified: auth?.currentUser?.emailVerified,
       isAnonymous: auth?.currentUser?.isAnonymous,
       tenantId: auth?.currentUser?.tenantId,
       providerInfo:
         auth?.currentUser?.providerData?.map((provider) => ({
           providerId: provider.providerId,
-          email: provider.email,
+          email: maskEmail(provider.email),
         })) || [],
     },
     operationType,

@@ -79,11 +79,17 @@ function simulateFirestoreRuleCheck(params: {
   return 'PERMISSION_DENIED';
 }
 
-test('Firestore rules file contains required Eight Pillars guards', () => {
+test('Firestore rules and config contain zero hardcoded emails, API keys, or admin overrides, and enforce Eight Pillars guards', () => {
   assert.ok(rulesContent.includes("rules_version = '2';"));
   assert.ok(rulesContent.includes('allow read, write: if false;'));
   assert.ok(rulesContent.includes('request.auth.token.email_verified == true'));
   assert.ok(rulesContent.includes('affectedKeys().hasOnly'));
+  assert.equal(rulesContent.includes('@gmail.com'), false);
+  assert.equal(rulesContent.includes('isAdmin'), false);
+
+  const rawConfig = fs.readFileSync('./firebase-applet-config.json', 'utf8');
+  assert.equal(rawConfig.includes('AIza'), false);
+  assert.equal(rawConfig.includes('googleusercontent.com'), false);
 });
 
 test('Dirty Dozen adversarial payloads all return PERMISSION_DENIED', () => {

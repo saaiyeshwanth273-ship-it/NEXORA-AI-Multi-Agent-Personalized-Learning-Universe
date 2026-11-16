@@ -66,7 +66,10 @@ export const GeminiVoiceAssistantWidget: React.FC<GeminiVoiceAssistantWidgetProp
     try {
       const res = await fetch('/api/voice/assistant', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Nexora-Client': 'nexora-web-v1',
+        },
         body: JSON.stringify({
           prompt: promptToAsk,
           voiceName,

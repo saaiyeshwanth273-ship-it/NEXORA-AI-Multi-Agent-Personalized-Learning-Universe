@@ -146,7 +146,11 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(profile));
+      const sanitizedForLocalStorage: LearnerProfileState = {
+        ...profile,
+        email: '',
+      };
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(sanitizedForLocalStorage));
     } catch {
       // Ignore storage quota errors
     }
@@ -301,7 +305,10 @@ export default function App() {
     try {
       const response = await fetch('/api/agents/orchestrate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Nexora-Client': 'nexora-web-v1',
+        },
         signal: controller.signal,
         body: JSON.stringify({
           learnerName: profile.fullName,
@@ -564,7 +571,10 @@ export default function App() {
     try {
       const res = await fetch('/api/mentor/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Nexora-Client': 'nexora-web-v1',
+        },
         signal: controller.signal,
         body: JSON.stringify({
           message: userText,
